@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { crawlGroup } from './apify.service'
+import { crawlAllGroups } from './apify.service'
 import { filterLeadWithAI, classifyByConfidence } from './aiLeadFilter.service'
 import { isDuplicate, getFingerprint } from './duplicate.service'
 import { logger } from '@/lib/logger'
@@ -53,188 +53,173 @@ export async function runScan(params: {
 
   logger.info(`Scan session created: ${session.id}, groups: ${groups.length}`)
 
-  let successGroups = 0
-  let failedGroups = 0
+  // Create group result records — all RUNNING at once (1 batch run)
+  const groupResultMap = new Map<string, string>() // groupId → groupResultId
+  for (const group of groups) {
+    const gr = await prisma.scanGroupResult.create({
+      data: { scanSessionId: session.id, groupId: group.id, status: 'RUNNING' },
+    })
+    groupResultMap.set(group.id, gr.id)
+    onProgress?.({ groupId: group.id, groupName: group.name, status: 'RUNNING', postsFound: 0, leadsFound: 0 })
+  }
+
+  const scanStartedAt = new Date()
+
   let totalPosts = 0
   let totalLeads = 0
   let totalDuplicated = 0
   let totalRejected = 0
+  const groupLeadsMap = new Map<string, number>()
+  const groupPostsMap = new Map<string, number>()
 
-  for (const group of groups) {
-    const groupResult = await prisma.scanGroupResult.create({
-      data: {
-        scanSessionId: session.id,
-        groupId: group.id,
-        status: 'RUNNING',
-      },
+  try {
+    // Single Apify run for all groups
+    const allPosts = await crawlAllGroups({
+      groups: groups.map((g) => ({
+        groupId: g.id,
+        groupUrl: g.url,
+        sinceDate: g.lastScannedAt ?? undefined,
+      })),
+      scanDays,
+      resultLimit,
+      apifyToken,
     })
 
-    onProgress?.({
-      groupId: group.id,
-      groupName: group.name,
-      status: 'RUNNING',
-      postsFound: 0,
-      leadsFound: 0,
-    })
+    // Dedup by postUrl against already-processed posts
+    const allPostUrls = allPosts.map((p) => p.url).filter(Boolean)
+    const existingUrlSet = new Set(
+      (await prisma.rawPost.findMany({
+        where: { postUrl: { in: allPostUrls } },
+        select: { postUrl: true },
+      })).map((r) => r.postUrl)
+    )
 
-    try {
-      // Use lastScannedAt for incremental scan — only fetch new posts since last run
-      const sinceDate = group.lastScannedAt ?? undefined
-      const scanStartedAt = new Date()
+    const newPosts = allPosts.filter((p) => !existingUrlSet.has(p.url))
+    logger.info(`Total posts: ${allPosts.length}, new (after dedup): ${newPosts.length}`)
 
-      const posts = await crawlGroup({
-        groupUrl: group.url,
-        scanDays,
-        resultLimit,
-        apifyToken,
-        sinceDate,
-      })
-
-      logger.info(`Group ${group.name}: found ${posts.length} posts (since ${sinceDate?.toISOString() ?? `${scanDays} days`})`)
-
-      // Dedup by postUrl against existing RawPosts — skip posts already processed
-      const existingUrls = new Set(
-        (await prisma.rawPost.findMany({
-          where: { groupId: group.id, postUrl: { in: posts.map((p) => p.url).filter(Boolean) } },
-          select: { postUrl: true },
-        })).map((r) => r.postUrl)
-      )
-
-      const newPosts = posts.filter((p) => !existingUrls.has(p.url))
-      const skipped = posts.length - newPosts.length
-      if (skipped > 0) logger.info(`Group ${group.name}: skipped ${skipped} already-processed posts`)
-
-      let groupLeads = 0
-
-      for (const post of newPosts) {
-        const rawPost = await prisma.rawPost.create({
-          data: {
-            scanSessionId: session.id,
-            groupId: group.id,
-            postText: post.text,
-            postUrl: post.url,
-            facebookUrl: post.facebookUrl || null,
-            userName: post.userName || null,
-            userId: post.userId || null,
-            rawJson: post.rawJson,
-          },
-        })
-
-        totalPosts++
-
-        const aiResult = await filterLeadWithAI({
-          postText: post.text,
-          provider: aiProvider,
-          openaiKey,
-          anthropicKey,
-        })
-
-        let status = classifyByConfidence(aiResult)
-
-        if (status !== 'REJECTED') {
-          const dup = await isDuplicate({
-            hinhThucCast: aiResult.hinhThucCast,
-            sanPhamDichVu: aiResult.sanPhamDichVu,
-            userName: post.userName,
-          })
-          if (dup) {
-            status = 'DUPLICATED'
-            totalDuplicated++
-          }
-        }
-
-        if (status === 'REJECTED') totalRejected++
-        if (status === 'AI_FILTERED' || status === 'NEED_REVIEW') {
-          totalLeads++
-          groupLeads++
-        }
-
-        await prisma.lead.create({
-          data: {
-            scanSessionId: session.id,
-            rawPostId: rawPost.id,
-            userName: post.userName || null,
-            userProfileUrl: post.facebookUrl || null,
-            postUrl: post.url || null,
-            postText: post.text,
-            hinhThucCast: aiResult.hinhThucCast || null,
-            sanPhamDichVu: aiResult.sanPhamDichVu || null,
-            soLuongCanBook: aiResult.soLuongCanBook || null,
-            sdtLienHe: aiResult.sdtLienHe || null,
-            message: aiResult.message || null,
-            confidence: aiResult.confidence,
-            reason: aiResult.reason || null,
-            rejectReason: aiResult.rejectReason || null,
-            fingerprint: getFingerprint({
-              hinhThucCast: aiResult.hinhThucCast,
-              sanPhamDichVu: aiResult.sanPhamDichVu,
-              userName: post.userName,
-            }),
-            status,
-          },
-        })
-      }
-
-      await prisma.scanGroupResult.update({
-        where: { id: groupResult.id },
+    for (const post of newPosts) {
+      const rawPost = await prisma.rawPost.create({
         data: {
-          status: 'DONE',
-          postsFound: newPosts.length,
-          leadsFound: groupLeads,
+          scanSessionId: session.id,
+          groupId: post.groupId,
+          postText: post.text,
+          postUrl: post.url,
+          facebookUrl: post.facebookUrl || null,
+          userName: post.userName || null,
+          userId: post.userId || null,
+          rawJson: post.rawJson,
         },
       })
 
-      // Save lastScannedAt so next run only fetches newer posts
+      totalPosts++
+      groupPostsMap.set(post.groupId, (groupPostsMap.get(post.groupId) ?? 0) + 1)
+
+      const aiResult = await filterLeadWithAI({
+        postText: post.text,
+        provider: aiProvider,
+        openaiKey,
+        anthropicKey,
+      })
+
+      let status = classifyByConfidence(aiResult)
+
+      if (status !== 'REJECTED') {
+        const dup = await isDuplicate({
+          hinhThucCast: aiResult.hinhThucCast,
+          sanPhamDichVu: aiResult.sanPhamDichVu,
+          userName: post.userName,
+        })
+        if (dup) {
+          status = 'DUPLICATED'
+          totalDuplicated++
+        }
+      }
+
+      if (status === 'REJECTED') totalRejected++
+      if (status === 'AI_FILTERED' || status === 'NEED_REVIEW') {
+        totalLeads++
+        groupLeadsMap.set(post.groupId, (groupLeadsMap.get(post.groupId) ?? 0) + 1)
+      }
+
+      await prisma.lead.create({
+        data: {
+          scanSessionId: session.id,
+          rawPostId: rawPost.id,
+          userName: post.userName || null,
+          userProfileUrl: post.facebookUrl || null,
+          postUrl: post.url || null,
+          postText: post.text,
+          hinhThucCast: aiResult.hinhThucCast || null,
+          sanPhamDichVu: aiResult.sanPhamDichVu || null,
+          soLuongCanBook: aiResult.soLuongCanBook || null,
+          sdtLienHe: aiResult.sdtLienHe || null,
+          message: aiResult.message || null,
+          confidence: aiResult.confidence,
+          reason: aiResult.reason || null,
+          rejectReason: aiResult.rejectReason || null,
+          fingerprint: getFingerprint({
+            hinhThucCast: aiResult.hinhThucCast,
+            sanPhamDichVu: aiResult.sanPhamDichVu,
+            userName: post.userName,
+          }),
+          status,
+        },
+      })
+    }
+
+    // Update per-group results and lastScannedAt
+    for (const group of groups) {
+      const grId = groupResultMap.get(group.id)!
+      const posts = groupPostsMap.get(group.id) ?? 0
+      const leads = groupLeadsMap.get(group.id) ?? 0
+
+      await prisma.scanGroupResult.update({
+        where: { id: grId },
+        data: { status: 'DONE', postsFound: posts, leadsFound: leads },
+      })
+
       await prisma.group.update({
         where: { id: group.id },
         data: { lastScannedAt: scanStartedAt },
       })
 
-      successGroups++
-      onProgress?.({
-        groupId: group.id,
-        groupName: group.name,
-        status: 'DONE',
-        postsFound: newPosts.length,
-        leadsFound: groupLeads,
-      })
-    } catch (err) {
-      const errorMessage = String(err)
-      logger.error(`Group ${group.name} failed`, err)
+      onProgress?.({ groupId: group.id, groupName: group.name, status: 'DONE', postsFound: posts, leadsFound: leads })
+    }
 
+    await prisma.scanSession.update({
+      where: { id: session.id },
+      data: {
+        endedAt: new Date(),
+        status: 'DONE',
+        successGroups: groups.length,
+        failedGroups: 0,
+        totalPosts,
+        totalLeads,
+        totalDuplicated,
+        totalRejected,
+      },
+    })
+
+    logger.info(`Scan session ${session.id} complete. Leads: ${totalLeads}`)
+  } catch (err) {
+    const errorMessage = String(err)
+    logger.error('Batch scan failed', err)
+
+    // Mark all groups as failed
+    for (const group of groups) {
+      const grId = groupResultMap.get(group.id)!
       await prisma.scanGroupResult.update({
-        where: { id: groupResult.id },
+        where: { id: grId },
         data: { status: 'FAILED', errorMessage },
       })
-
-      failedGroups++
-      onProgress?.({
-        groupId: group.id,
-        groupName: group.name,
-        status: 'FAILED',
-        postsFound: 0,
-        leadsFound: 0,
-        errorMessage,
-      })
+      onProgress?.({ groupId: group.id, groupName: group.name, status: 'FAILED', postsFound: 0, leadsFound: 0, errorMessage })
     }
+
+    await prisma.scanSession.update({
+      where: { id: session.id },
+      data: { endedAt: new Date(), status: 'FAILED', failedGroups: groups.length, errorMessage },
+    })
   }
 
-  const finalStatus = failedGroups === groups.length ? 'FAILED' : 'DONE'
-
-  await prisma.scanSession.update({
-    where: { id: session.id },
-    data: {
-      endedAt: new Date(),
-      status: finalStatus,
-      successGroups,
-      failedGroups,
-      totalPosts,
-      totalLeads,
-      totalDuplicated,
-      totalRejected,
-    },
-  })
-
-  logger.info(`Scan session ${session.id} complete. Status: ${finalStatus}, Leads: ${totalLeads}`)
   return session.id
 }
