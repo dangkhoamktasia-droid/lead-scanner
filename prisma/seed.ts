@@ -1,9 +1,17 @@
-import { PrismaClient } from '@prisma/client'
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
-import path from 'path'
+import { PrismaClient } from '@prisma/client'
+import * as dotenv from 'dotenv'
+import * as path from 'path'
 
-const dbPath = path.resolve(__dirname, '../dev.db')
-const adapter = new PrismaBetterSqlite3({ url: `file:${dbPath}` })
+dotenv.config({ path: path.resolve(__dirname, '../.env') })
+
+const dbUrl = process.env.DATABASE_URL ?? 'file:./dev.db'
+// Resolve relative file paths to absolute so the adapter can find the DB
+const resolvedUrl = dbUrl.startsWith('file:.')
+  ? `file:${path.resolve(__dirname, '..', dbUrl.replace('file:', ''))}`
+  : dbUrl
+
+const adapter = new PrismaBetterSqlite3({ url: resolvedUrl })
 const prisma = new PrismaClient({ adapter })
 
 const DEFAULT_GROUPS = [

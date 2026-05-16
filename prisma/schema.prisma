@@ -50,8 +50,8 @@ model ScanGroupResult {
   errorMessage  String?
   createdAt     DateTime @default(now())
 
-  scanSession ScanSession @relation(fields: [scanSessionId], references: [id])
-  group       Group       @relation(fields: [groupId], references: [id])
+  scanSession ScanSession @relation(fields: [scanSessionId], references: [id], onDelete: Cascade)
+  group       Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
 }
 
 model RawPost {
@@ -66,8 +66,8 @@ model RawPost {
   rawJson       String
   createdAt     DateTime @default(now())
 
-  scanSession ScanSession @relation(fields: [scanSessionId], references: [id])
-  group       Group       @relation(fields: [groupId], references: [id])
+  scanSession ScanSession @relation(fields: [scanSessionId], references: [id], onDelete: Cascade)
+  group       Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
   lead        Lead?
 }
 
@@ -93,9 +93,13 @@ model Lead {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  scanSession ScanSession @relation(fields: [scanSessionId], references: [id])
-  rawPost     RawPost     @relation(fields: [rawPostId], references: [id])
+  scanSession ScanSession @relation(fields: [scanSessionId], references: [id], onDelete: Cascade)
+  rawPost     RawPost     @relation(fields: [rawPostId], references: [id], onDelete: Cascade)
   syncLogs    SyncLog[]
+
+  @@index([fingerprint])
+  @@index([status])
+  @@index([scanSessionId, status])
 }
 
 model SyncLog {
@@ -106,7 +110,7 @@ model SyncLog {
   errorMessage String?
   createdAt    DateTime @default(now())
 
-  lead Lead @relation(fields: [leadId], references: [id])
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
 }
 
 model AppSetting {
