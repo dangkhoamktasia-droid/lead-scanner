@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Group {
+  id        String   @id @default(cuid())
+  name      String
+  url       String   @unique
+  enabled   Boolean  @default(true)
+  priority  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rawPosts         RawPost[]
+  scanGroupResults ScanGroupResult[]
+}
+
+model ScanSession {
+  id              String    @id @default(cuid())
+  startedAt       DateTime  @default(now())
+  endedAt         DateTime?
+  status          String    @default("RUNNING")
+  scanDays        Int       @default(2)
+  resultLimit     Int       @default(30)
+  totalGroups     Int       @default(0)
+  successGroups   Int       @default(0)
+  failedGroups    Int       @default(0)
+  totalPosts      Int       @default(0)
+  totalLeads      Int       @default(0)
+  totalDuplicated Int       @default(0)
+  totalRejected   Int       @default(0)
+  errorMessage    String?
+
+  rawPosts         RawPost[]
+  leads            Lead[]
+  scanGroupResults ScanGroupResult[]
+}
+
+model ScanGroupResult {
+  id            String   @id @default(cuid())
+  scanSessionId String
+  groupId       String
+  status        String   @default("PENDING")
+  postsFound    Int      @default(0)
+  leadsFound    Int      @default(0)
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+
+  scanSession ScanSession @relation(fields: [scanSessionId], references: [id])
+  group       Group       @relation(fields: [groupId], references: [id])
+}
+
+model RawPost {
+  id            String   @id @default(cuid())
+  scanSessionId String
+  groupId       String
+  postText      String
+  postUrl       String
+  facebookUrl   String?
+  userName      String?
+  userId        String?
+  rawJson       String
+  createdAt     DateTime @default(now())
+
+  scanSession ScanSession @relation(fields: [scanSessionId], references: [id])
+  group       Group       @relation(fields: [groupId], references: [id])
+  lead        Lead?
+}
+
+model Lead {
+  id             String    @id @default(cuid())
+  scanSessionId  String
+  rawPostId      String    @unique
+  userName       String?
+  userProfileUrl String?
+  postUrl        String?
+  postText       String
+  hinhThucCast   String?
+  sanPhamDichVu  String?
+  soLuongCanBook String?
+  sdtLienHe      String?
+  message        String?
+  confidence     Float     @default(0)
+  reason         String?
+  rejectReason   String?
+  fingerprint    String?
+  status         String    @default("RAW")
+  syncedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  scanSession ScanSession @relation(fields: [scanSessionId], references: [id])
+  rawPost     RawPost     @relation(fields: [rawPostId], references: [id])
+  syncLogs    SyncLog[]
+}
+
+model SyncLog {
+  id           String   @id @default(cuid())
+  leadId       String
+  sheetRow     Int?
+  status       String   @default("SUCCESS")
+  errorMessage String?
+  createdAt    DateTime @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id])
+}
+
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
