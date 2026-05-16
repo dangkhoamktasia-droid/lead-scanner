@@ -84,9 +84,13 @@ export async function crawlGroup(params: {
   scanDays: number
   resultLimit: number
   apifyToken: string
+  sinceDate?: Date
 }): Promise<ApifyPost[]> {
-  const { groupUrl, scanDays, resultLimit, apifyToken } = params
-  const onlyPostsNewerThan = `${scanDays} days`
+  const { groupUrl, scanDays, resultLimit, apifyToken, sinceDate } = params
+  // Use exact timestamp if available (incremental), else fall back to "X days"
+  const onlyPostsNewerThan = sinceDate
+    ? sinceDate.toISOString()
+    : `${scanDays} days`
 
   let items: ApifyItem[]
 

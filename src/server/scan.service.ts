@@ -78,18 +78,35 @@ export async function runScan(params: {
     })
 
     try {
+      // Use lastScannedAt for incremental scan — only fetch new posts since last run
+      const sinceDate = group.lastScannedAt ?? undefined
+      const scanStartedAt = new Date()
+
       const posts = await crawlGroup({
         groupUrl: group.url,
         scanDays,
         resultLimit,
         apifyToken,
+        sinceDate,
       })
 
-      logger.info(`Group ${group.name}: found ${posts.length} posts`)
+      logger.info(`Group ${group.name}: found ${posts.length} posts (since ${sinceDate?.toISOString() ?? `${scanDays} days`})`)
+
+      // Dedup by postUrl against existing RawPosts — skip posts already processed
+      const existingUrls = new Set(
+        (await prisma.rawPost.findMany({
+          where: { groupId: group.id, postUrl: { in: posts.map((p) => p.url).filter(Boolean) } },
+          select: { postUrl: true },
+        })).map((r) => r.postUrl)
+      )
+
+      const newPosts = posts.filter((p) => !existingUrls.has(p.url))
+      const skipped = posts.length - newPosts.length
+      if (skipped > 0) logger.info(`Group ${group.name}: skipped ${skipped} already-processed posts`)
 
       let groupLeads = 0
 
-      for (const post of posts) {
+      for (const post of newPosts) {
         const rawPost = await prisma.rawPost.create({
           data: {
             scanSessionId: session.id,
@@ -162,9 +179,15 @@ export async function runScan(params: {
         where: { id: groupResult.id },
         data: {
           status: 'DONE',
-          postsFound: posts.length,
+          postsFound: newPosts.length,
           leadsFound: groupLeads,
         },
+      })
+
+      // Save lastScannedAt so next run only fetches newer posts
+      await prisma.group.update({
+        where: { id: group.id },
+        data: { lastScannedAt: scanStartedAt },
       })
 
       successGroups++
@@ -172,7 +195,7 @@ export async function runScan(params: {
         groupId: group.id,
         groupName: group.name,
         status: 'DONE',
-        postsFound: posts.length,
+        postsFound: newPosts.length,
         leadsFound: groupLeads,
       })
     } catch (err) {

@@ -7,13 +7,14 @@ datasource db {
 }
 
 model Group {
-  id        String   @id @default(cuid())
-  name      String
-  url       String   @unique
-  enabled   Boolean  @default(true)
-  priority  Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String    @id @default(cuid())
+  name          String
+  url           String    @unique
+  enabled       Boolean   @default(true)
+  priority      Int       @default(0)
+  lastScannedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   rawPosts         RawPost[]
   scanGroupResults ScanGroupResult[]
