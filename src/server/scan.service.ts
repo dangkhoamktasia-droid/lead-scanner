@@ -22,6 +22,7 @@ export async function runScan(params: {
   groupIds: string[]
   scanDays: number
   resultLimit: number
+  jobId?: string
   onProgress?: (progress: ScanGroupProgress) => void
 }): Promise<string> {
   const { groupIds, scanDays, resultLimit, onProgress } = params
@@ -48,6 +49,7 @@ export async function runScan(params: {
       resultLimit,
       totalGroups: groups.length,
       status: 'RUNNING',
+      jobId: params.jobId ?? null,
     },
   })
 
@@ -69,12 +71,13 @@ export async function runScan(params: {
   let totalLeads = 0
   let totalDuplicated = 0
   let totalRejected = 0
+  let aiPostsProcessed = 0
   const groupLeadsMap = new Map<string, number>()
   const groupPostsMap = new Map<string, number>()
 
   try {
     // Single Apify run for all groups
-    const allPosts = await crawlAllGroups({
+    const crawlResult = await crawlAllGroups({
       groups: groups.map((g) => ({
         groupId: g.id,
         groupUrl: g.url,
@@ -84,6 +87,9 @@ export async function runScan(params: {
       resultLimit,
       apifyToken,
     })
+    const allPosts = crawlResult.posts
+    const apifyRunId = crawlResult.runId
+    const apifyCostUsd = crawlResult.apifyCostUsd
 
     // Dedup by postUrl against already-processed posts
     const allPostUrls = allPosts.map((p) => p.url).filter(Boolean)
@@ -112,10 +118,12 @@ export async function runScan(params: {
       })
 
       totalPosts++
+      aiPostsProcessed++
       groupPostsMap.set(post.groupId, (groupPostsMap.get(post.groupId) ?? 0) + 1)
 
       const aiResult = await filterLeadWithAI({
         postText: post.text,
+        postUrl: post.url,
         provider: aiProvider,
         openaiKey,
         anthropicKey,
@@ -145,6 +153,7 @@ export async function runScan(params: {
         data: {
           scanSessionId: session.id,
           rawPostId: rawPost.id,
+          jobId: params.jobId ?? null,
           userName: post.userName || null,
           userProfileUrl: post.facebookUrl || null,
           postUrl: post.url || null,
@@ -186,6 +195,9 @@ export async function runScan(params: {
       onProgress?.({ groupId: group.id, groupName: group.name, status: 'DONE', postsFound: posts, leadsFound: leads })
     }
 
+    // GPT-4o-mini: $0.15/1M input + $0.60/1M output, avg ~600 tokens/post
+    const aiCostUsd = aiPostsProcessed * 600 * (0.15 + 0.60) / 2 / 1_000_000
+
     await prisma.scanSession.update({
       where: { id: session.id },
       data: {
@@ -197,6 +209,9 @@ export async function runScan(params: {
         totalLeads,
         totalDuplicated,
         totalRejected,
+        apifyRunId,
+        apifyCostUsd,
+        aiCostUsd,
       },
     })
 

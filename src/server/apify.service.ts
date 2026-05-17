@@ -32,7 +32,7 @@ async function runApifyActorBatch(
   onlyPostsNewerThan: string,
   resultsLimitPerGroup: number,
   apifyToken: string
-): Promise<ApifyItem[]> {
+): Promise<{ items: ApifyItem[]; runId: string; costUsd: number | null }> {
   const startUrls = groupUrls.map((url) => ({ url }))
 
   const runRes = await fetch(
@@ -69,19 +69,27 @@ async function runApifyActorBatch(
     const statusRes = await fetch(
       `https://api.apify.com/v2/actor-runs/${runId}?token=${apifyToken}`
     )
-    const statusData = await statusRes.json() as { data: { status: string } }
+    const statusData = await statusRes.json() as { data: { status: string; usageTotalUsd?: number; stats?: { computeUnits?: number } } }
     const status = statusData.data.status
 
     logger.info(`Apify batch run ${runId} status: ${status}`)
 
     if (status === 'SUCCEEDED') {
-      // Fetch all items — up to resultsLimitPerGroup × number of groups
+      // Fetch items first
       const limit = resultsLimitPerGroup * groupUrls.length
       const dataRes = await fetch(
         `https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${apifyToken}&limit=${limit}`
       )
       const items = await dataRes.json() as ApifyItem[]
-      return items
+
+      // Wait 5s for Apify to finalize billing before reading cost
+      await new Promise((r) => setTimeout(r, 5000))
+      const finalRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?token=${apifyToken}`)
+      const finalData = await finalRes.json() as { data: { usageTotalUsd?: number } }
+      const costUsd = finalData.data.usageTotalUsd ?? statusData.data.usageTotalUsd ?? null
+      logger.info(`Apify run cost (finalized): $${costUsd}`)
+
+      return { items, runId, costUsd }
     }
 
     if (status === 'FAILED' || status === 'ABORTED' || status === 'TIMED-OUT') {
@@ -102,13 +110,19 @@ export interface ApifyPostWithGroup extends ApifyPost {
   groupId: string
 }
 
+export interface CrawlResult {
+  posts: ApifyPostWithGroup[]
+  runId: string | null
+  apifyCostUsd: number | null
+}
+
 // Crawl all groups in a single Apify run, return posts tagged with their DB groupId
 export async function crawlAllGroups(params: {
   groups: GroupCrawlInput[]
   scanDays: number
   resultLimit: number
   apifyToken: string
-}): Promise<ApifyPostWithGroup[]> {
+}): Promise<CrawlResult> {
   const { groups, scanDays, resultLimit, apifyToken } = params
 
   // Use the earliest lastScannedAt across all groups as the cutoff
@@ -131,9 +145,9 @@ export async function crawlAllGroups(params: {
     if (slugMatch) groupUrlIdMap.set(slugMatch[1], g.groupId)
   }
 
-  let items: ApifyItem[]
+  let batchResult: { items: ApifyItem[]; runId: string; costUsd: number | null }
   try {
-    items = await runApifyActorBatch(
+    batchResult = await runApifyActorBatch(
       groups.map((g) => g.groupUrl),
       onlyPostsNewerThan,
       resultLimit,
@@ -141,7 +155,7 @@ export async function crawlAllGroups(params: {
     )
   } catch (err) {
     logger.warn('Batch run failed, retrying with limit=15', err)
-    items = await runApifyActorBatch(
+    batchResult = await runApifyActorBatch(
       groups.map((g) => g.groupUrl),
       onlyPostsNewerThan,
       15,
@@ -149,6 +163,7 @@ export async function crawlAllGroups(params: {
     )
   }
 
+  const { items, runId, costUsd } = batchResult
   const posts: ApifyPostWithGroup[] = []
 
   for (const item of items) {
@@ -175,5 +190,5 @@ export async function crawlAllGroups(params: {
   }
 
   logger.info(`Batch crawl complete: ${posts.length} posts from ${groups.length} groups`)
-  return posts
+  return { posts, runId, apifyCostUsd: costUsd }
 }

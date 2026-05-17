@@ -3,7 +3,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { LeadPreviewTable } from '@/components/LeadPreviewTable'
 import { toast } from 'sonner'
 
-interface Session { id: string; startedAt: string; totalLeads: number; status: string }
+interface Session { id: string; startedAt: string; totalLeads: number; status: string; jobId: string | null }
+interface Job { id: string; name: string; color: string }
 interface Lead {
   id: string; userName: string | null; userProfileUrl: string | null; postUrl: string | null
   postText: string; hinhThucCast: string | null; sanPhamDichVu: string | null
@@ -11,24 +12,25 @@ interface Lead {
   confidence: number; reason: string | null; rejectReason: string | null; status: string
 }
 
-export function LeadsClient({ sessions }: { sessions: Session[] }) {
-  const [selectedSession, setSelectedSession] = useState<string>(sessions[0]?.id ?? '')
+export function LeadsClient({ sessions, jobs }: { sessions: Session[]; jobs: Job[] }) {
+  const [selectedSession, setSelectedSession] = useState<string>('')
   const [statusFilter, setStatusFilter] = useState<string>('AI_FILTERED,NEED_REVIEW')
+  const [jobFilter, setJobFilter] = useState<string>('all')
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([])
-  const [syncing, setSyncing] = useState(false)
 
   const loadLeads = useCallback(async () => {
-    if (!selectedSession) return
     setLoading(true)
-    const params = new URLSearchParams({ sessionId: selectedSession, status: statusFilter })
+    const params = new URLSearchParams({ status: statusFilter })
+    if (selectedSession) params.set('sessionId', selectedSession)
+    if (jobFilter !== 'all') params.set('jobId', jobFilter)
     const res = await fetch(`/api/leads?${params}`)
     const data = await res.json()
     setLeads(Array.isArray(data) ? data : [])
     setSelectedLeadIds([])
     setLoading(false)
-  }, [selectedSession, statusFilter])
+  }, [selectedSession, statusFilter, jobFilter])
 
   useEffect(() => { loadLeads() }, [loadLeads])
 
@@ -46,39 +48,45 @@ export function LeadsClient({ sessions }: { sessions: Session[] }) {
     }
   }
 
-  const handleSync = async () => {
-    const approvedIds = selectedLeadIds.length > 0
-      ? selectedLeadIds
-      : leads.filter((l) => l.status === 'APPROVED').map((l) => l.id)
-
-    if (approvedIds.length === 0) {
-      toast.error('Không có lead APPROVED nào để sync')
-      return
-    }
-
-    setSyncing(true)
-    try {
-      const res = await fetch('/api/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadIds: approvedIds }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      toast.success(`Sync thành công ${data.success} lead. Thất bại: ${data.failed}`)
-      loadLeads()
-    } catch (err) {
-      toast.error(String(err))
-    } finally {
-      setSyncing(false)
-    }
-  }
-
-  const approvedCount = leads.filter((l) => l.status === 'APPROVED').length
+  const filteredSessions = jobFilter === 'all'
+    ? sessions
+    : sessions.filter((s) => s.jobId === jobFilter)
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-xl border p-4 flex flex-wrap gap-4 items-end">
+      {/* Job tabs — luôn hiện, kể cả khi chỉ có 1 job */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          onClick={() => { setJobFilter('all'); setSelectedSession('') }}
+          className={`px-4 py-2 rounded-xl text-sm font-medium transition-all border ${
+            jobFilter === 'all'
+              ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white border-transparent shadow-md shadow-indigo-100'
+              : 'bg-white text-gray-500 border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
+          }`}
+        >
+          Tất cả
+        </button>
+        {jobs.map((j) => (
+          <button
+            key={j.id}
+            onClick={() => { setJobFilter(j.id); setSelectedSession('') }}
+            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all border ${
+              jobFilter === j.id
+                ? 'text-white border-transparent shadow-md'
+                : 'bg-white text-gray-500 border-gray-200 hover:text-gray-700'
+            }`}
+            style={jobFilter === j.id ? { background: j.color, borderColor: j.color, boxShadow: `0 4px 12px ${j.color}40` } : { '--hover-color': j.color } as React.CSSProperties}
+          >
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: jobFilter === j.id ? 'white' : j.color }} />
+              {j.name}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <div className="glass-card rounded-2xl p-4 flex flex-col sm:flex-row flex-wrap gap-3 sm:items-end shadow-sm">
+        {/* job dropdown removed — replaced by tabs above */}
         <div>
           <label className="text-xs font-medium text-gray-600 block mb-1">Phiên scan</label>
           <select
@@ -86,7 +94,8 @@ export function LeadsClient({ sessions }: { sessions: Session[] }) {
             onChange={(e) => setSelectedSession(e.target.value)}
             className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
-            {sessions.map((s) => (
+            <option value="">Tất cả phiên</option>
+            {filteredSessions.map((s) => (
               <option key={s.id} value={s.id}>
                 {new Date(s.startedAt).toLocaleString('vi-VN')} ({s.totalLeads} leads)
               </option>
@@ -100,28 +109,17 @@ export function LeadsClient({ sessions }: { sessions: Session[] }) {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
-            <option value="AI_FILTERED,NEED_REVIEW">Chờ duyệt (AI_FILTERED + NEED_REVIEW)</option>
+            <option value="AI_FILTERED,NEED_REVIEW">Chờ duyệt</option>
             <option value="APPROVED">Đã approve</option>
             <option value="REJECTED">Đã reject</option>
-            <option value="SYNCED_TO_SHEET">Đã sync</option>
           </select>
-        </div>
-        <div className="ml-auto flex gap-2">
-          <span className="text-sm text-gray-500 self-center">{approvedCount} đã approve</span>
-          <button
-            onClick={handleSync}
-            disabled={syncing || approvedCount === 0}
-            className="bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors"
-          >
-            {syncing ? 'Đang sync...' : 'Sync Google Sheet'}
-          </button>
         </div>
       </div>
 
       {loading ? (
         <div className="text-center py-12 text-gray-400">Đang tải lead...</div>
       ) : leads.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">Không có lead nào trong phiên này</div>
+        <div className="text-center py-12 text-gray-400">Không có lead nào</div>
       ) : (
         <LeadPreviewTable
           leads={leads}

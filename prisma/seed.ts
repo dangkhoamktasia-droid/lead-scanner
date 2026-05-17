@@ -27,14 +27,49 @@ const DEFAULT_GROUPS = [
 ]
 
 async function main() {
+  // Create default job if not exists
+  const existingJob = await prisma.job.findFirst({ where: { name: 'Booking TikToker' } })
+
+  const job = existingJob ?? await prisma.job.create({
+    data: {
+      name: 'Booking TikToker',
+      description: 'Tìm lead booking KOL/KOC/TikToker từ Facebook Groups',
+      color: '#6366F1',
+      enabled: true,
+    },
+  })
+
+  console.log(`Job: ${job.name} (${job.id})`)
+
   for (const group of DEFAULT_GROUPS) {
     await prisma.group.upsert({
       where: { url: group.url },
       update: {},
-      create: group,
+      create: { ...group, jobId: job.id },
     })
   }
   console.log('Seeded', DEFAULT_GROUPS.length, 'groups')
+
+  // Assign all groups without a jobId to this default job
+  const updatedGroups = await prisma.group.updateMany({
+    where: { jobId: null },
+    data: { jobId: job.id },
+  })
+  console.log(`Updated ${updatedGroups.count} groups → jobId`)
+
+  // Assign all leads without a jobId
+  const updatedLeads = await prisma.lead.updateMany({
+    where: { jobId: null },
+    data: { jobId: job.id },
+  })
+  console.log(`Updated ${updatedLeads.count} leads → jobId`)
+
+  // Assign all scan sessions without a jobId
+  const updatedSessions = await prisma.scanSession.updateMany({
+    where: { jobId: null },
+    data: { jobId: job.id },
+  })
+  console.log(`Updated ${updatedSessions.count} scan sessions → jobId`)
 
   const defaults = [
     { key: 'defaultScanDays', value: '2' },

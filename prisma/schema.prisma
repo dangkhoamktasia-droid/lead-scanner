@@ -3,7 +3,21 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
+}
+
+model Job {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  color       String   @default("#6366F1")
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  groups       Group[]
+  leads        Lead[]
+  scanSessions ScanSession[]
 }
 
 model Group {
@@ -12,6 +26,8 @@ model Group {
   url           String    @unique
   enabled       Boolean   @default(true)
   priority      Int       @default(0)
+  jobId         String?
+  job           Job?      @relation(fields: [jobId], references: [id])
   lastScannedAt DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -25,6 +41,8 @@ model ScanSession {
   startedAt       DateTime  @default(now())
   endedAt         DateTime?
   status          String    @default("RUNNING")
+  jobId           String?
+  job             Job?      @relation(fields: [jobId], references: [id])
   scanDays        Int       @default(2)
   resultLimit     Int       @default(30)
   totalGroups     Int       @default(0)
@@ -34,6 +52,9 @@ model ScanSession {
   totalLeads      Int       @default(0)
   totalDuplicated Int       @default(0)
   totalRejected   Int       @default(0)
+  apifyRunId      String?
+  apifyCostUsd    Float?
+  aiCostUsd       Float?
   errorMessage    String?
 
   rawPosts         RawPost[]
@@ -75,6 +96,8 @@ model RawPost {
 model Lead {
   id             String    @id @default(cuid())
   scanSessionId  String
+  jobId          String?
+  job            Job?      @relation(fields: [jobId], references: [id])
   rawPostId      String    @unique
   userName       String?
   userProfileUrl String?

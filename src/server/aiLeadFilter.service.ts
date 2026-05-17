@@ -52,12 +52,13 @@ async function callAnthropic(prompt: string, apiKey: string): Promise<string> {
 
 export async function filterLeadWithAI(params: {
   postText: string
+  postUrl: string
   provider: 'openai' | 'anthropic'
   openaiKey: string
   anthropicKey: string
 }): Promise<AiLeadResult> {
-  const { postText, provider, openaiKey, anthropicKey } = params
-  const prompt = buildLeadFilterPrompt(postText)
+  const { postText, postUrl, provider, openaiKey, anthropicKey } = params
+  const prompt = buildLeadFilterPrompt(postText, postUrl)
 
   let rawJson: string
   try {

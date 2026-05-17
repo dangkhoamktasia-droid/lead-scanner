@@ -62,12 +62,12 @@ export function SettingsClient({ initialSettings }: SettingsClientProps) {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-xl border p-6 shadow-sm space-y-4">
+      <div className="glass-card rounded-2xl p-6 shadow-sm space-y-4">
         <h2 className="font-semibold text-gray-800">Apify</h2>
         <Field label="Apify API Token" name="apifyToken" value={settings.apifyToken ?? ''} onChange={set('apifyToken')} type="password" placeholder="apify_api_..." />
       </div>
 
-      <div className="bg-white rounded-xl border p-6 shadow-sm space-y-4">
+      <div className="glass-card rounded-2xl p-6 shadow-sm space-y-4">
         <h2 className="font-semibold text-gray-800">AI Provider</h2>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Provider</label>
@@ -84,24 +84,7 @@ export function SettingsClient({ initialSettings }: SettingsClientProps) {
         <Field label="Anthropic API Key" name="anthropicKey" value={settings.anthropicKey ?? ''} onChange={set('anthropicKey')} type="password" placeholder="sk-ant-..." />
       </div>
 
-      <div className="bg-white rounded-xl border p-6 shadow-sm space-y-4">
-        <h2 className="font-semibold text-gray-800">Google Sheets</h2>
-        <Field label="Google Sheet ID" name="googleSheetId" value={settings.googleSheetId ?? ''} onChange={set('googleSheetId')} placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms" />
-        <Field label="Sheet Name" name="googleSheetName" value={settings.googleSheetName ?? 'Sheet1'} onChange={set('googleSheetName')} />
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Google Credentials JSON</label>
-          <textarea
-            value={settings.googleCredentialsJson ?? ''}
-            onChange={(e) => set('googleCredentialsJson')(e.target.value)}
-            placeholder='{"type": "service_account", ...}'
-            rows={4}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-          <p className="text-xs text-gray-400 mt-1">Paste nội dung file google-service-account.json vào đây</p>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl border p-6 shadow-sm space-y-4">
+      <div className="glass-card rounded-2xl p-6 shadow-sm space-y-4">
         <h2 className="font-semibold text-gray-800">Scan Defaults</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -131,7 +114,7 @@ export function SettingsClient({ initialSettings }: SettingsClientProps) {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border p-6 shadow-sm space-y-4">
+      <div className="glass-card rounded-2xl p-6 shadow-sm space-y-4">
         <h2 className="font-semibold text-gray-800">Message Template</h2>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Template tin nhắn mặc định</label>

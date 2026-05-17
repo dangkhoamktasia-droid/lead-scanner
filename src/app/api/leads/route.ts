@@ -4,11 +4,13 @@ import { prisma } from '@/lib/prisma'
 export async function GET(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get('sessionId')
   const statusParam = req.nextUrl.searchParams.get('status')
+  const jobId = req.nextUrl.searchParams.get('jobId')
   const statuses = statusParam ? statusParam.split(',') : undefined
 
   const where: Record<string, unknown> = {}
   if (sessionId) where.scanSessionId = sessionId
   if (statuses) where.status = { in: statuses }
+  if (jobId) where.jobId = jobId
 
   const leads = await prisma.lead.findMany({
     where,

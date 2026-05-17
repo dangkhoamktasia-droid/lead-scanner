@@ -26,23 +26,23 @@ export function LeadPreviewTable({
   }
 
   return (
-    <div className="bg-white rounded-xl border overflow-hidden shadow-sm">
+    <div className="glass-card rounded-2xl overflow-hidden shadow-sm">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b">
-            <tr>
-              <th className="px-3 py-3 text-left w-8"></th>
-              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Người đăng</th>
-              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hình thức</th>
-              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sản phẩm</th>
-              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">SĐT</th>
-              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase w-20">Conf.</th>
-              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tin nhắn</th>
-              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+          <thead>
+            <tr className="bg-gradient-to-r from-indigo-50/80 to-purple-50/80 border-b border-white/60">
+              <th className="px-4 py-3 text-left w-8"></th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Người đăng</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Hình thức</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Sản phẩm</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">SĐT</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-20">AI %</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Tin nhắn</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Trạng thái</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Thao tác</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-gray-100/60">
             {leads.map((lead) => (
               <LeadRow
                 key={lead.id}
