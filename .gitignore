@@ -50,3 +50,5 @@ dev.db-journal
 credentials/
 *.db
 *.db-journal
+
+.vercel
