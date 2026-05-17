@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
 import { ArrowRight, Clock, AlertCircle, Users, ThumbsUp, TrendingUp, DollarSign, Sun } from 'lucide-react'
