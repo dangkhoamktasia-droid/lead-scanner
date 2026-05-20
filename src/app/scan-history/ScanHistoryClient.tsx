@@ -146,7 +146,7 @@ export function ScanHistoryClient({ sessions, jobs, totalLeadsAll, monthCostUsd,
                 >
                   <td className="px-4 py-3">
                     <p className="font-medium text-gray-800">
-                      {new Date(s.startedAt).toLocaleString('vi-VN')}
+                      {new Date(s.startedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
                     </p>
                     <p className="text-xs text-gray-400">
                       {formatDistanceToNow(new Date(s.startedAt), { addSuffix: true, locale: vi })}
