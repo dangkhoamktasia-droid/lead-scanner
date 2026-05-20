@@ -3,17 +3,11 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 export async function POST() {
-  // Find all sessions that are RUNNING or have stale totalLeads=0 but older than 10 min
+  // Find all sessions older than 10 min (fix both stale RUNNING and DONE with wrong counts)
   const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000)
   const staleSessions = await prisma.scanSession.findMany({
-    where: {
-      OR: [
-        { status: 'RUNNING' },
-        { status: 'FAILED' },
-      ],
-      startedAt: { lt: tenMinutesAgo },
-    },
-    select: { id: true, status: true, startedAt: true },
+    where: { startedAt: { lt: tenMinutesAgo } },
+    select: { id: true, status: true, startedAt: true, totalLeads: true, totalPosts: true },
   })
 
   const results = []
