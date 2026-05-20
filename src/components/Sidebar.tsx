@@ -1,18 +1,27 @@
-'use client'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Users, History, Settings, Zap, Briefcase } from 'lucide-react'
+import { LayoutDashboard, Users, History, Settings, Zap, Briefcase, Clock } from 'lucide-react'
+import { prisma } from '@/lib/prisma'
+import { SidebarNav } from './SidebarNav'
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/jobs', label: 'Jobs', icon: Briefcase },
-  { href: '/leads', label: 'Leads', icon: Users },
-  { href: '/scan-history', label: 'Lịch sử Scan', icon: History },
-  { href: '/settings', label: 'Cài đặt', icon: Settings },
+  { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
+  { href: '/jobs', label: 'Jobs', icon: 'jobs' },
+  { href: '/leads', label: 'Leads', icon: 'leads' },
+  { href: '/scan-history', label: 'Lịch sử Scan', icon: 'history' },
+  { href: '/settings', label: 'Cài đặt', icon: 'settings' },
 ]
 
-export function Sidebar() {
-  const pathname = usePathname()
+async function getScanHours(): Promise<string[]> {
+  try {
+    const row = await prisma.appSetting.findUnique({ where: { key: 'cronScheduleHours' } })
+    if (row?.value) return JSON.parse(row.value) as string[]
+  } catch { /* ignore */ }
+  return ['7h', '19h']
+}
+
+export async function Sidebar() {
+  const scanHours = await getScanHours()
+  const hoursDisplay = scanHours.join(' · ')
 
   return (
     <aside className="w-60 glass-card flex flex-col min-h-screen shadow-xl rounded-none border-r border-white/60">
@@ -24,40 +33,23 @@ export function Sidebar() {
           </div>
           <div>
             <p className="font-bold text-gray-800 text-sm leading-none">Lead Scanner</p>
-            <p className="text-xs text-gray-400 mt-0.5">KOL/KOC Booking</p>
+            <p className="text-xs text-gray-500 mt-0.5">KOL/KOC Booking</p>
           </div>
         </div>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 p-4 space-y-1">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-2">Menu</p>
-        {navItems.map((item) => {
-          const Icon = item.icon
-          const active = pathname.startsWith(item.href)
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                active
-                  ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md shadow-indigo-200'
-                  : 'text-gray-600 hover:bg-white/70 hover:text-gray-900 hover:shadow-sm'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              {item.label}
-            </Link>
-          )
-        })}
-      </nav>
+      {/* Nav — client component for active state */}
+      <SidebarNav navItems={navItems} />
 
-      {/* Footer */}
+      {/* Footer — scan schedule from DB */}
       <div className="p-4 border-t border-white/40">
-        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-3 border border-indigo-100">
-          <p className="text-xs font-semibold text-indigo-700">Auto-scan</p>
-          <p className="text-xs text-gray-500 mt-0.5">6h · 10h · 14h · 18h · 22h</p>
-        </div>
+        <Link href="/settings" className="block bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-3 border border-indigo-100 hover:border-indigo-300 transition-colors">
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <Clock className="w-3 h-3 text-indigo-600" />
+            <p className="text-xs font-semibold text-indigo-700">Auto-scan</p>
+          </div>
+          <p className="text-xs text-gray-700 font-medium">{hoursDisplay}</p>
+        </Link>
       </div>
     </aside>
   )
