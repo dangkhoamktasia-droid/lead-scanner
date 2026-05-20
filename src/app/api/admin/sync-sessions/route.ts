@@ -48,12 +48,13 @@ export async function POST() {
       const lm = leadsMap.get(session.id) ?? { total: 0, rejected: 0, duplicated: 0 }
       const qualified = lm.total - lm.rejected - lm.duplicated
 
+      // totalLeads = only qualified leads (not REJECTED, not DUPLICATED)
       await prisma.scanSession.update({
         where: { id: session.id },
         data: {
           status: 'DONE',
           totalPosts: posts,
-          totalLeads: lm.total,
+          totalLeads: qualified,
           totalRejected: lm.rejected,
           totalDuplicated: lm.duplicated,
           endedAt: new Date(),
@@ -63,9 +64,10 @@ export async function POST() {
       results.push({
         startedAt: session.startedAt,
         posts,
-        leads: lm.total,
+        total: lm.total,
         qualified,
         rejected: lm.rejected,
+        duplicated: lm.duplicated,
       })
     }
 
