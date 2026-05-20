@@ -140,22 +140,24 @@ export function LeadRow({ lead, selected, onSelect, onApprove, onReject, onClose
           </span>
         </td>
         <td className="px-4 py-3">
-          <div className="flex gap-1">
+          <div className="flex gap-1 items-center">
+            {lead.status === 'APPROVED' && (
+              <button onClick={onClose}
+                className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-semibold hover:bg-violet-700 active:scale-95 transition-all flex items-center gap-1.5 shadow-sm">
+                <Handshake className="w-3.5 h-3.5" />
+                Hợp tác
+              </button>
+            )}
             {lead.status !== 'APPROVED' && lead.status !== 'CLOSED' && (
               <button onClick={onApprove} title="Approve"
                 className="p-1.5 rounded-lg hover:bg-emerald-100 text-emerald-500 hover:text-emerald-700 transition-colors">
                 <CheckCircle className="w-4 h-4" />
               </button>
             )}
-            {lead.status !== 'CLOSED' && (
+            {lead.status !== 'APPROVED' && lead.status !== 'CLOSED' && (
               <button onClick={onClose} title="Hợp tác"
-                className={`rounded-lg transition-colors flex items-center gap-1 ${
-                  lead.status === 'APPROVED'
-                    ? 'px-2.5 py-1.5 bg-violet-100 text-violet-700 hover:bg-violet-200 font-medium text-xs'
-                    : 'p-1.5 hover:bg-violet-100 text-violet-400 hover:text-violet-700'
-                }`}>
-                <Handshake className="w-4 h-4 flex-shrink-0" />
-                {lead.status === 'APPROVED' && <span>Hợp tác</span>}
+                className="p-1.5 rounded-lg hover:bg-violet-100 text-violet-400 hover:text-violet-700 transition-colors">
+                <Handshake className="w-4 h-4" />
               </button>
             )}
             {lead.status !== 'REJECTED' && lead.status !== 'CLOSED' && (

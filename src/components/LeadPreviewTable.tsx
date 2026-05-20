@@ -171,19 +171,21 @@ function MobileLeadCard({ lead, selected, onSelect, onApprove, onReject, onClose
 
       {/* Actions */}
       <div className="mt-3 flex gap-2">
+        {lead.status === 'APPROVED' && (
+          <button onClick={onClose}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-semibold hover:bg-violet-700 active:scale-95 transition-all shadow-md">
+            <Handshake className="w-4 h-4" /> Hợp tác
+          </button>
+        )}
         {lead.status !== 'APPROVED' && lead.status !== 'CLOSED' && (
           <button onClick={onApprove}
             className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-medium hover:bg-emerald-100 active:scale-95 transition-all border border-emerald-100">
             <CheckCircle className="w-4 h-4" /> Approve
           </button>
         )}
-        {lead.status !== 'CLOSED' && (
+        {lead.status !== 'APPROVED' && lead.status !== 'CLOSED' && (
           <button onClick={onClose}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-medium active:scale-95 transition-all ${
-              lead.status === 'APPROVED'
-                ? 'bg-violet-600 text-white hover:bg-violet-700 border border-violet-600 shadow-md'
-                : 'bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-100'
-            }`}>
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-violet-50 text-violet-700 text-sm font-medium hover:bg-violet-100 active:scale-95 transition-all border border-violet-100">
             <Handshake className="w-4 h-4" /> Hợp tác
           </button>
         )}
